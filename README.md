@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# Google Photos Clone - Frontend
+
+Next.js 16 frontend for Google Photos Clone application.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS v4
+- **UI Components**: shadcn/ui
+- **State Management**: React Context
+- **HTTP Client**: Fetch API with custom wrapper
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
+- Node.js 18+
+- npm or yarn
+- Backend API running on http://localhost:8000
+
+### Installation
+
+\\\ash
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env.local
+
+# Update API URL in .env.local if needed
+NEXT_PUBLIC_API_URL=http://localhost:8000
+NEXT_PUBLIC_STORAGE_URL=http://localhost:8000/storage
+\\\
+
+### Development
+
+\\\ash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+\\\
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Production Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+\\\ash
+npm run build
+npm run start
+\\\
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+\\\
+src/
+ app/                    # Next.js App Router pages
+    (auth)/            # Authentication pages (login, register, forgot-password)
+    (protected)/       # Protected pages requiring authentication
+       photos/        # Photos gallery
+       albums/        # Albums management
+       videos/        # Videos gallery
+       favorites/     # Favorite photos
+       trash/         # Deleted photos (30-day retention)
+       friends/       # Friends management
+       shares/        # Shared content
+       notifications/ # Notifications
+       profile/       # User profile
+       upload/        # Upload photos/videos
+    share/[token]/     # Public share pages
+ components/            # React components
+    layout/           # Layout components
+    photos/           # Photo-related components
+    ui/               # shadcn/ui components
+ contexts/             # React Context providers
+ lib/                  # Utilities and API client
+    api/              # API client
+ types/                # TypeScript type definitions
+\\\
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Features
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Photo & Video upload with drag-and-drop
+- Photo gallery with Google Photos-style grid
+- Album management (create, rename, delete, set cover)
+- Favorites and trash functionality
+- Friend system with requests
+- Share photos/albums via links or with friends
+- Real-time notifications
+- User profile management
+- Storage quota tracking
 
-## Deploy on Vercel
+## Environment Variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| NEXT_PUBLIC_API_URL | Backend API URL | http://localhost:8000 |
+| NEXT_PUBLIC_STORAGE_URL | Storage URL for images | http://localhost:8000/storage |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+MIT
