@@ -9,6 +9,7 @@ interface PhotoGridProps {
   onSelectionChange?: (ids: number[]) => void;
   onFavorite?: (id: number) => void;
   onDelete?: (id: number) => void;
+  onPhotoClick?: (photo: Photo) => void;
   emptyMessage?: string;
 }
 
@@ -18,6 +19,7 @@ export default function PhotoGrid({
   onSelectionChange,
   onFavorite,
   onDelete,
+  onPhotoClick,
   emptyMessage = 'Khong co anh nao',
 }: PhotoGridProps) {
   const selectionMode = selectedIds.length > 0;
@@ -54,6 +56,7 @@ export default function PhotoGrid({
           onSelect={handleSelect}
           onFavorite={onFavorite}
           onDelete={onDelete}
+          onClick={onPhotoClick}
         />
       ))}
     </div>

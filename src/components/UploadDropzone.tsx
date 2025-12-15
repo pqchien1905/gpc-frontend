@@ -1,8 +1,8 @@
 ﻿'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, X, Image, Film, Loader2 } from 'lucide-react';
+import { Upload, X, Image, Film, Loader2, Clipboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { api } from '@/lib/api/client';
@@ -19,15 +19,68 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles = acceptedFiles.map((file) => ({
+  const addFiles = useCallback((acceptedFiles: File[]) => {
+    const validFiles = acceptedFiles.filter((file) => {
+      const isImage = file.type.startsWith('image/');
+      const isVideo = file.type.startsWith('video/');
+      return isImage || isVideo;
+    });
+
+    if (validFiles.length === 0) {
+      toast.error('Chỉ hỗ trợ file ảnh hoặc video');
+      return;
+    }
+
+    const newFiles = validFiles.map((file) => ({
       file,
       preview: URL.createObjectURL(file),
       progress: 0,
       status: 'pending' as const,
     }));
     setFiles((prev) => [...prev, ...newFiles]);
+    
+    if (validFiles.length > 0) {
+      toast.success(`Đã thêm ${validFiles.length} file`);
+    }
   }, []);
+
+  // Handle paste from clipboard
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const files: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file) {
+            // Generate a name for pasted images
+            const extension = file.type.split('/')[1] || 'png';
+            const renamedFile = new File(
+              [file],
+              `pasted-image-${Date.now()}.${extension}`,
+              { type: file.type }
+            );
+            files.push(renamedFile);
+          }
+        }
+      }
+
+      if (files.length > 0) {
+        e.preventDefault();
+        addFiles(files);
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => document.removeEventListener('paste', handlePaste);
+  }, [addFiles]);
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    addFiles(acceptedFiles);
+  }, [addFiles]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -50,44 +103,39 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
     if (files.length === 0) return;
 
     setIsUploading(true);
-    let successCount = 0;
-    let errorCount = 0;
+    setFiles((prev) => prev.map((f) => ({ ...f, status: 'uploading' as const })));
 
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].status === 'done') continue;
+    try {
+      const formData = new FormData();
+      files.forEach((f) => formData.append('photos[]', f.file));
 
-      setFiles((prev) =>
-        prev.map((f, idx) =>
-          idx === i ? { ...f, status: 'uploading' as const } : f
-        )
-      );
+      const res = await api.photos.uploadBatch(formData);
 
-      try {
-        await api.photos.upload(files[i].file);
-        setFiles((prev) =>
-          prev.map((f, idx) =>
-            idx === i ? { ...f, progress: 100, status: 'done' as const } : f
-          )
-        );
-        successCount++;
-      } catch (error) {
-        setFiles((prev) =>
-          prev.map((f, idx) =>
-            idx === i ? { ...f, status: 'error' as const } : f
-          )
-        );
-        errorCount++;
+      const successCount = res.uploaded ?? (res.data?.length ?? 0);
+      const restored = res.restored ?? 0;
+      const duplicates = res.duplicates ?? 0;
+
+      setFiles((prev) => prev.map((f) => ({ ...f, progress: 100, status: 'done' as const })));
+
+      const messages: string[] = [];
+      if (successCount > 0) messages.push(`Đã tải lên ${successCount} file thành công`);
+      if (restored > 0) messages.push(`Khôi phục ${restored} file trùng trước đó`);
+      if (duplicates > 0) messages.push(`Bỏ qua ${duplicates} file trùng`);
+
+      if (messages.length === 0) {
+        toast.info('Không có file mới được tải lên');
+      } else {
+        toast.success(messages.join('. '));
       }
-    }
 
-    setIsUploading(false);
-
-    if (successCount > 0) {
-      toast.success(`Da tai len ${successCount} file thanh cong`);
       onUploadComplete?.();
-    }
-    if (errorCount > 0) {
-      toast.error(`${errorCount} file tai len that bai`);
+    } catch (error: any) {
+      console.error(error);
+      const message = error.response?.data?.message || error.message || 'Không thể tải lên';
+      toast.error(message);
+      setFiles((prev) => prev.map((f) => ({ ...f, status: 'error' as const })));
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -99,22 +147,26 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
           isDragActive
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-gray-300 hover:border-gray-400'
+            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
         }`}
       >
         <input {...getInputProps()} />
         <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
         {isDragActive ? (
-          <p className="text-blue-600 font-medium">Tha file vao day...</p>
+          <p className="text-blue-600 dark:text-blue-400 font-medium">Thả file vào đây...</p>
         ) : (
           <>
-            <p className="text-gray-600 font-medium">
-              Keo tha anh/video vao day
+            <p className="text-gray-600 dark:text-gray-300 font-medium">
+              Kéo thả ảnh/video vào đây
             </p>
-            <p className="text-gray-400 text-sm mt-1">
-              hoac click de chon file
+            <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
+              hoặc click để chọn file
             </p>
+            <div className="flex items-center justify-center gap-2 mt-3 text-gray-400 dark:text-gray-500 text-sm">
+              <Clipboard className="h-4 w-4" />
+              <span>Hoặc paste ảnh từ clipboard (Ctrl+V)</span>
+            </div>
           </>
         )}
       </div>
@@ -124,9 +176,9 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {files.map((file, index) => (
               <div key={index} className="relative group">
-                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100">
+                <div className="aspect-square rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
                   {isVideo(file.file) ? (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-700">
                       <Film className="h-8 w-8 text-gray-400" />
                     </div>
                   ) : (
@@ -143,12 +195,16 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
                   )}
                   {file.status === 'done' && (
                     <div className="absolute inset-0 bg-green-500/30 flex items-center justify-center">
-                      <span className="text-white text-2xl"></span>
+                      <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                     </div>
                   )}
                   {file.status === 'error' && (
                     <div className="absolute inset-0 bg-red-500/30 flex items-center justify-center">
-                      <span className="text-white text-2xl"></span>
+                      <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
                     </div>
                   )}
                 </div>
@@ -160,7 +216,7 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
                     <X className="h-4 w-4" />
                   </button>
                 )}
-                <p className="text-xs text-gray-500 truncate mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
                   {file.file.name}
                 </p>
               </div>
@@ -176,12 +232,12 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
               {isUploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Dang tai len...
+                  Đang tải lên...
                 </>
               ) : (
                 <>
                   <Upload className="mr-2 h-4 w-4" />
-                  Tai len {files.filter((f) => f.status === 'pending').length} file
+                  Tải lên {files.filter((f) => f.status === 'pending').length} file
                 </>
               )}
             </Button>
@@ -190,7 +246,7 @@ export default function UploadDropzone({ onUploadComplete }: { onUploadComplete?
               onClick={() => setFiles([])}
               disabled={isUploading}
             >
-              Xoa tat ca
+              Xóa tất cả
             </Button>
           </div>
         </div>

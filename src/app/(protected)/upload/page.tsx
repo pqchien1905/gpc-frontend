@@ -15,7 +15,7 @@ export default function UploadPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Tai len anh va video</h1>
+      <h1 className="text-2xl font-bold mb-6">Tải lên ảnh và video</h1>
       <UploadDropzone onUploadComplete={handleUploadComplete} />
     </div>
   );

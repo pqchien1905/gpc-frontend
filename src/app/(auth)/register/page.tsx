@@ -32,10 +32,15 @@ export default function RegisterPage() {
       toast.success('Đăng ký thành công!');
       router.push('/photos');
     } catch (error: any) {
+      console.error('Registration error:', error);
+      console.error('Error response:', error.response);
       if (error.response?.data?.errors) {
         setErrors(error.response.data.errors);
+        console.error('Validation errors:', error.response.data.errors);
       } else {
-        toast.error(error.response?.data?.message || 'Đăng ký thất bại');
+        const message = error.response?.data?.message || error.message || 'Đăng ký thất bại';
+        toast.error(message);
+        console.error('Error message:', message);
       }
     } finally {
       setIsLoading(false);
@@ -46,7 +51,7 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 via-green-500 to-yellow-500 rounded-full mb-4" />
+          <div className="mx-auto w-16 h-16 bg-linear-to-br from-blue-500 via-green-500 to-yellow-500 rounded-full mb-4" />
           <CardTitle className="text-2xl">Tạo tài khoản</CardTitle>
           <CardDescription>
             Đăng ký tài khoản Google Photos mới
@@ -91,6 +96,7 @@ export default function RegisterPage() {
                 required
               />
               {errors.password && <p className="text-sm text-red-500">{errors.password}</p>}
+              <p className="text-xs text-gray-500">Tối thiểu 8 ký tự, bao gồm chữ hoa, chữ thường và số</p>
             </div>
 
             <div className="space-y-2">

@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,8 +15,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { api } from '@/lib/api/client';
 
-const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8000/storage';
+import { getStorageUrl } from '@/lib/utils/api-url';
+
+const STORAGE_URL = getStorageUrl();
 
 interface NavItem {
   name: string;
@@ -26,7 +30,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
-    name: 'áº¢nh',
+    name: 'Ảnh',
     href: '/photos',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,7 +48,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    name: 'YÃªu thÃ­ch',
+    name: 'Yêu thích',
     href: '/favorites',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -62,7 +66,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    name: 'Chia sáº»',
+    name: 'Chia sẻ',
     href: '/shares',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,7 +75,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    name: 'Báº¡n bÃ¨',
+    name: 'Bạn bè',
     href: '/friends',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,7 +84,7 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    name: 'ThÃ¹ng rÃ¡c',
+    name: 'Thùng rác',
     href: '/trash',
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,6 +100,7 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
   const { user, logout, isLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,6 +114,28 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
     router.push('/login');
   };
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchUnread = async () => {
+      try {
+        const res = await api.notifications.unreadCount();
+        if (isMounted) {
+          setUnreadCount(res.count);
+        }
+      } catch (error) {
+        // ignore
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -118,21 +145,21 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b z-50 px-4 flex items-center justify-between">
+      <header className="fixed top-0 left-0 right-0 h-16 bg-white dark:bg-gray-900 border-b dark:border-gray-700 z-50 px-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-gray-100 rounded-full"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
           <Link href="/photos" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 via-green-500 to-yellow-500 rounded-full" />
-            <span className="text-xl font-medium text-gray-700">Google Photos</span>
+            <div className="w-8 h-8 bg-linear-to-br from-blue-500 via-green-500 to-yellow-500 rounded-full" />
+            <span className="text-xl font-medium text-gray-700 dark:text-gray-200">Google Photos</span>
           </Link>
         </div>
 
@@ -149,16 +176,31 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
             </svg>
             <Input
               type="search"
-              placeholder="TÃ¬m kiáº¿m áº£nh, video..."
+              placeholder="Tìm kiếm ảnh, video..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-100 border-0 rounded-lg focus:bg-white focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 py-2 bg-gray-100 dark:bg-gray-800 border-0 rounded-lg focus:bg-white dark:focus:bg-gray-700 focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </form>
 
         {/* User Menu */}
         <div className="flex items-center gap-2">
+          <ThemeToggle />
+
+          <Link href="/notifications">
+            <Button variant="ghost" size="icon" className="relative rounded-full">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 text-[10px] bg-red-500 text-white rounded-full px-1 min-w-[18px] text-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Button>
+          </Link>
+          
           <Link href="/upload">
             <Button variant="ghost" size="icon" className="rounded-full">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,14 +230,14 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/profile">Há»“ sÆ¡</Link>
+                <Link href="/profile">Hồ sơ</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/notifications">ThÃ´ng bÃ¡o</Link>
+                <Link href="/notifications">Thông báo</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="text-red-600">
-                ÄÄƒng xuáº¥t
+                Đăng xuất
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -204,7 +246,7 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-16 bottom-0 w-64 bg-white border-r transition-transform z-40 ${
+        className={`fixed left-0 top-16 bottom-0 w-64 bg-white dark:bg-gray-900 border-r dark:border-gray-700 transition-transform z-40 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -217,8 +259,8 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
                 href={item.href}
                 className={`flex items-center gap-4 px-4 py-3 rounded-full transition-colors ${
                   isActive
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                 }`}
               >
                 {item.icon}
@@ -228,13 +270,13 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
           })}
         </nav>
 
-        <Separator className="my-4" />
+        <Separator className="my-4 dark:bg-gray-700" />
 
         {/* Storage Info */}
         {user && (
           <div className="px-6 py-4">
-            <div className="text-sm text-gray-600 mb-2">Dung lÆ°á»£ng</div>
-            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div className="text-sm text-gray-600 dark:text-gray-400 mb-2">Dung lượng</div>
+            <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
               <div
                 className="h-full bg-blue-600 rounded-full"
                 style={{
@@ -245,7 +287,7 @@ export default function GooglePhotosLayout({ children }: { children: ReactNode }
                 }}
               />
             </div>
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
               {user.storage_used_human} / {user.storage_quota_human}
             </div>
           </div>

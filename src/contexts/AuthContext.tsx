@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       const response = await api.auth.me();
-      setUser(response.data as User);
+      setUser(response.user as User);
     } catch (error) {
       api.setToken(null);
       setUser(null);

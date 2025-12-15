@@ -10,23 +10,56 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 
 export default function FriendsPage() {
-  const [friends, setFriends] = useState<Friend[]>([]);
-  const [requests, setRequests] = useState<FriendRequest[]>([]);
-  const [sentRequests, setSentRequests] = useState<FriendRequest[]>([]);
+  const [friends, setFriends] = useState<any[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
+  const [sentRequests, setSentRequests] = useState<any[]>([]);
+  const [blocked, setBlocked] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchEmail, setSearchEmail] = useState('');
 
   const fetchData = async () => {
     try {
-      const [friendsRes, requestsRes, sentRes] = await Promise.all([
-        api.friends.list(),
-        api.friends.requests(),
-        api.friends.sentRequests(),
-      ]);
-      setFriends(friendsRes.data as Friend[]);
-      setRequests(requestsRes.data as FriendRequest[]);
-      setSentRequests(sentRes.data as FriendRequest[]);
+      const summary = await api.friends.summary();
+      // Map response to match component expectations
+      const friends = (summary.friends || []).map((f: any) => ({
+        id: f.id,
+        name: f.user?.name,
+        email: f.user?.email,
+        avatar: f.user?.avatar,
+      }));
+      const incoming = (summary.incoming || []).map((r: any) => ({
+        id: r.id,
+        user: {
+          id: r.user?.id,
+          name: r.user?.name,
+          email: r.user?.email,
+          avatar: r.user?.avatar,
+        },
+      }));
+      const outgoing = (summary.outgoing || []).map((r: any) => ({
+        id: r.id,
+        friend: {
+          id: r.friend?.id,
+          name: r.friend?.name,
+          email: r.friend?.email,
+          avatar: r.friend?.avatar,
+        },
+      }));
+      const blockedList = (summary.blocked || []).map((b: any) => ({
+        id: b.id,
+        user: {
+          id: b.user?.id,
+          name: b.user?.name,
+          email: b.user?.email,
+        },
+      }));
+
+      setFriends(friends);
+      setRequests(incoming);
+      setSentRequests(outgoing);
+      setBlocked(blockedList);
     } catch (error) {
+      console.error('Error fetching friends:', error);
       toast.error('Không thể tải danh sách bạn bè');
     } finally {
       setIsLoading(false);
@@ -82,6 +115,27 @@ export default function FriendsPage() {
     }
   };
 
+  const handleBlock = async (id: number) => {
+    if (!confirm('Chặn người này? Họ sẽ không thể kết nối với bạn.')) return;
+    try {
+      await api.friends.block(id);
+      toast.success('Đã chặn người dùng');
+      fetchData();
+    } catch (error) {
+      toast.error('Không thể chặn');
+    }
+  };
+
+  const handleUnblock = async (id: number) => {
+    try {
+      await api.friends.unblock(id);
+      toast.success('Đã bỏ chặn');
+      fetchData();
+    } catch (error) {
+      toast.error('Không thể bỏ chặn');
+    }
+  };
+
   const handleCancelRequest = async (id: number) => {
     try {
       await api.friends.cancelRequest(id);
@@ -126,6 +180,9 @@ export default function FriendsPage() {
           <TabsTrigger value="sent">
             Đã gửi ({sentRequests.length})
           </TabsTrigger>
+          <TabsTrigger value="blocked">
+            Đã chặn ({blocked.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="friends" className="mt-4">
@@ -157,6 +214,13 @@ export default function FriendsPage() {
                     onClick={() => handleRemoveFriend(friend.id)}
                   >
                     Xóa bạn
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBlock(friend.id)}
+                  >
+                    Chặn
                   </Button>
                 </div>
               ))}
@@ -232,6 +296,39 @@ export default function FriendsPage() {
                     onClick={() => handleCancelRequest(request.id)}
                   >
                     Hủy lời mời
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="blocked" className="mt-4">
+          {blocked.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Chưa chặn ai</div>
+          ) : (
+            <div className="space-y-3">
+              {blocked.map((request) => (
+                <div
+                  key={request.id}
+                  className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar>
+                      <AvatarImage src={request.user?.avatar} />
+                      <AvatarFallback>{request.user?.name?.charAt(0)?.toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{request.user?.name}</p>
+                      <p className="text-sm text-gray-500">{request.user?.email}</p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleUnblock(request.id)}
+                  >
+                    Bỏ chặn
                   </Button>
                 </div>
               ))}

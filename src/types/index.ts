@@ -18,18 +18,23 @@ export interface User {
 
 export interface Photo {
   id: number;
-  file_path: string;
-  thumbnail_path?: string | null;
+  path: string; // original file path
+  thumb_path?: string | null; // thumbnail path
+  file_path?: string; // alias for path (backward compat)
+  thumbnail_path?: string | null; // alias for thumb_path (backward compat)
   original_filename: string;
-  mime_type: string;
+  mime: string; // backend returns 'mime' not 'mime_type'
+  mime_type?: string; // alias for mime (backward compat)
   size: number;
   width?: number;
   height?: number;
   is_favorite: boolean;
+  captured_at?: string | null;
   taken_at?: string | null;
   created_at: string;
   deleted_at?: string | null;
   location?: string | null;
+  location_text?: string | null;
   exif?: Record<string, unknown> | null;
   duration?: number; // for videos
 }

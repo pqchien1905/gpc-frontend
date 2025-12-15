@@ -6,13 +6,15 @@ import Image from 'next/image';
 import { api } from '@/lib/api/client';
 import { ShareLink, Photo, Album } from '@/types';
 
-const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8000/storage';
+import { getStorageUrl } from '@/lib/utils/api-url';
+
+const STORAGE_URL = getStorageUrl();
 
 export default function PublicSharePage() {
   const params = useParams();
   const token = params.token as string;
   
-  const [shareLink, setShareLink] = useState<ShareLink | null>(null);
+  const [shared, setShared] = useState<{ type: 'photo' | 'album'; data: Photo | Album } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,9 +22,9 @@ export default function PublicSharePage() {
     const fetchShare = async () => {
       try {
         const response = await api.shareLinks.getByToken(token);
-        setShareLink(response.data);
+        setShared(response);
       } catch (err) {
-        setError('Link chia se khong ton tai hoac da het han');
+        setError('Link chia sẻ không tồn tại hoặc đã hết hạn');
       } finally {
         setIsLoading(false);
       }
@@ -41,7 +43,7 @@ export default function PublicSharePage() {
     );
   }
 
-  if (error || !shareLink) {
+  if (error || !shared) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
@@ -55,9 +57,9 @@ export default function PublicSharePage() {
     );
   }
 
-  const isAlbum = shareLink.type === 'album';
-  const album = isAlbum ? (shareLink.item as Album) : null;
-  const photo = !isAlbum ? (shareLink.item as Photo) : null;
+  const isAlbum = shared.type === 'album';
+  const album = isAlbum ? (shared.data as Album) : null;
+  const photo = !isAlbum ? (shared.data as Photo) : null;
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -83,8 +85,8 @@ export default function PublicSharePage() {
                 {album.photos.map((p: Photo) => (
                   <div key={p.id} className="aspect-square relative bg-gray-200">
                     <Image
-                      src={STORAGE_URL + '/' + (p.thumbnail_path || p.file_path)}
-                      alt={p.original_filename}
+                      src={STORAGE_URL + '/' + (p.thumb_path || p.path)}
+                      alt={p.original_filename || 'Photo'}
                       fill
                       className="object-cover"
                     />
@@ -101,14 +103,14 @@ export default function PublicSharePage() {
             <div className="relative max-w-4xl w-full" style={{ height: '70vh' }}>
               {photo.mime_type?.startsWith('video/') ? (
                 <video
-                  src={STORAGE_URL + '/' + photo.file_path}
+                  src={STORAGE_URL + '/' + (photo.file_path || photo.path)}
                   controls
                   className="w-full h-full object-contain"
                 />
               ) : (
                 <Image
-                  src={STORAGE_URL + '/' + photo.file_path}
-                  alt={photo.original_filename}
+                  src={STORAGE_URL + '/' + (photo.file_path || photo.path)}
+                  alt={photo.original_filename || 'Photo'}
                   fill
                   className="object-contain"
                 />

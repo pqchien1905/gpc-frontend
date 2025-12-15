@@ -1,6 +1,4 @@
-﻿import { User, Photo, Album, Friend, FriendRequest, Share, ShareLink, Notification, AuthResponse, PaginatedResponse } from '@/types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+﻿import { User, Photo, Album, Friend, FriendRequest, Share, ShareLink, Notification, AuthResponse } from '@/types';
 
 interface RequestOptions {
   method?: string;
@@ -10,6 +8,30 @@ interface RequestOptions {
 
 class ApiClient {
   private token: string | null = null;
+  private apiUrl: string | null = null;
+
+  private getApiUrl(): string {
+    if (this.apiUrl) return this.apiUrl;
+    
+    if (typeof window !== 'undefined') {
+      const envUrl = process.env.NEXT_PUBLIC_API_URL;
+      if (envUrl && !envUrl.includes('localhost')) {
+        this.apiUrl = envUrl;
+        return this.apiUrl;
+      }
+      
+      // If localhost or not set, use current hostname
+      const hostname = window.location.hostname;
+      const port = 8000;
+      const protocol = window.location.protocol;
+      this.apiUrl = `${protocol}//${hostname}:${port}`;
+      return this.apiUrl;
+    }
+    
+    // Server-side
+    this.apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    return this.apiUrl;
+  }
 
   setToken(token: string | null) {
     this.token = token;
@@ -33,7 +55,7 @@ class ApiClient {
   }
 
   private async request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const url = endpoint.startsWith('http') ? endpoint : API_URL + endpoint;
+    const url = endpoint.startsWith('http') ? endpoint : this.getApiUrl() + endpoint;
 
     const headers: Record<string, string> = {
       Accept: 'application/json',
@@ -48,23 +70,32 @@ class ApiClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    const response = await fetch(url, {
-      method: options.method || 'GET',
-      headers: {
-        ...headers,
-        ...(options.headers as Record<string, string>),
-      },
-      body: options.body instanceof FormData
-        ? options.body
-        : options.body
-          ? JSON.stringify(options.body)
-          : undefined,
-      credentials: 'include',
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: options.method || 'GET',
+        headers: {
+          ...headers,
+          ...(options.headers as Record<string, string>),
+        },
+        body: options.body instanceof FormData
+          ? options.body
+          : options.body
+            ? JSON.stringify(options.body)
+            : undefined,
+        // No credentials needed for token-based auth
+      });
+    } catch {
+      const err = new Error('Network request failed. Please check your connection.');
+      Object.assign(err, { response: { data: { message: 'Network error' }, status: 0 } });
+      throw err;
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Request failed' }));
-      throw new Error(error.message || 'Request failed');
+      const err = new Error(error.message || 'Request failed');
+      Object.assign(err, { response: { data: error, status: response.status } });
+      throw err;
     }
 
     if (response.status === 204) {
@@ -92,7 +123,7 @@ class ApiClient {
       this.request('/api/auth/logout', { method: 'POST' }),
 
     me: () =>
-      this.request<{ data: User }>('/api/auth/me'),
+      this.request<{ user: User }>('/api/auth/user'),
 
     forgotPassword: (email: string) =>
       this.request('/api/auth/forgot-password', {
@@ -107,12 +138,56 @@ class ApiClient {
       }),
   };
 
+  // Profile
+  profile = {
+    update: (data: { name?: string; email?: string }) =>
+      this.request<{ message?: string; user: User }>('/api/profile', {
+        method: 'PATCH',
+        body: data,
+      }),
+
+    updatePassword: (data: { current_password: string; password: string; password_confirmation: string }) =>
+      this.request<{ message?: string }>('/api/auth/password', {
+        method: 'PUT',
+        body: data,
+      }),
+
+    updateAvatar: (file: File) => {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      return this.request<{ message?: string; avatar_path: string }>('/api/profile/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+    },
+
+    storage: () =>
+      this.request<{ storage: { used: number; quota: number; available: number; used_human: string; quota_human: string; percentage: number } }>(
+        '/api/profile/storage'
+      ),
+  };
+
   // Photos
   photos = {
-    list: (params?: { page?: number; search?: string }) => {
+    list: (params?: { 
+      page?: number; 
+      search?: string; 
+      sort?: 'newest' | 'oldest' | 'name_asc' | 'name_desc' | 'size_asc' | 'size_desc' | 'captured_asc' | 'captured_desc';
+      type?: 'image' | 'video';
+      size?: 'small' | 'medium' | 'large';
+      format?: string;
+      from?: string;
+      to?: string;
+    }) => {
       const query = new URLSearchParams();
       if (params?.page) query.set('page', String(params.page));
-      if (params?.search) query.set('search', params.search);
+      if (params?.search) query.set('q', params.search);
+      if (params?.sort) query.set('sort', params.sort);
+      if (params?.type) query.set('type', params.type);
+      if (params?.size) query.set('size', params.size);
+      if (params?.format) query.set('format', params.format);
+      if (params?.from) query.set('from', params.from);
+      if (params?.to) query.set('to', params.to);
       const queryString = query.toString();
       return this.request<{ data: Photo[] }>('/api/photos' + (queryString ? '?' + queryString : ''));
     },
@@ -122,8 +197,16 @@ class ApiClient {
 
     upload: (file: File) => {
       const formData = new FormData();
-      formData.append('file', file);
-      return this.request<{ data: Photo }>('/api/photos', {
+      // Backend expects array field "photos[]"
+      formData.append('photos[]', file);
+      return this.request<{ data: Photo[]; uploaded: number; restored: number; duplicates: number }>('/api/photos', {
+        method: 'POST',
+        body: formData,
+      });
+    },
+
+    uploadBatch: (formData: FormData) => {
+      return this.request<{ data: Photo[]; uploaded: number; restored: number; duplicates: number }>('/api/photos', {
         method: 'POST',
         body: formData,
       });
@@ -136,7 +219,7 @@ class ApiClient {
       this.request('/api/photos/' + id + '/restore', { method: 'POST' }),
 
     forceDelete: (id: number) =>
-      this.request('/api/photos/' + id + '/force-delete', { method: 'DELETE' }),
+      this.request('/api/photos/' + id + '/force', { method: 'DELETE' }),
 
     toggleFavorite: (id: number) =>
       this.request('/api/photos/' + id + '/favorite', { method: 'POST' }),
@@ -147,8 +230,22 @@ class ApiClient {
     trash: () =>
       this.request<{ data: Photo[] }>('/api/photos/trash'),
 
-    download: (id: number) =>
-      this.request<Blob>('/api/photos/' + id + '/download'),
+    download: (id: number) => {
+      const url = this.getApiUrl() + '/api/photos/' + id + '/download';
+      const token = this.getToken();
+      const headers: Record<string, string> = {
+        Accept: 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = 'Bearer ' + token;
+      }
+      return fetch(url, { headers });
+    },
+
+    regenerateThumbnail: (id: number) =>
+      this.request<{ message: string }>('/api/photos/' + id + '/regenerate-thumbnail', {
+        method: 'POST',
+      }),
   };
 
   // Videos
@@ -161,10 +258,11 @@ class ApiClient {
     get: (id: number) =>
       this.request<{ data: Photo }>('/api/videos/' + id),
 
+    // Videos are uploaded via the same /api/photos endpoint (backend accepts video mimes)
     upload: (file: File) => {
       const formData = new FormData();
-      formData.append('file', file);
-      return this.request<{ data: Photo }>('/api/videos', {
+      formData.append('photos[]', file);
+      return this.request<{ data: Photo[]; uploaded: number; restored: number; duplicates: number }>('/api/photos', {
         method: 'POST',
         body: formData,
       });
@@ -217,48 +315,66 @@ class ApiClient {
         method: 'PUT',
         body: { photo_id: photoId },
       }),
+
+    createAutoAlbums: (data: { type: 'date' | 'location'; min_photos?: number }) =>
+      this.request<{ message: string; created: number; updated: number; type: string }>('/api/albums/auto-create', {
+        method: 'POST',
+        body: data,
+      }),
   };
 
   // Friends
   friends = {
-    list: () =>
-      this.request<{ data: Friend[] }>('/api/friends'),
+    // Full friend summary: accepted + incoming + outgoing + blocked
+    summary: () =>
+      this.request<{ friends: Friend[]; incoming: FriendRequest[]; outgoing: FriendRequest[]; blocked: FriendRequest[] }>('/api/friends'),
 
+    // Simple accepted list (for picker)
+    list: () =>
+      this.request<{ data: Friend[] }>('/api/friends/list'),
+
+    // Alias helpers to match old UI expectations
     requests: () =>
-      this.request<{ data: FriendRequest[] }>('/api/friends/requests'),
+      this.request<{ friends: Friend[]; incoming: FriendRequest[]; outgoing: FriendRequest[]; blocked: FriendRequest[] }>('/api/friends').then(r => ({ data: r.incoming })),
 
     sentRequests: () =>
-      this.request<{ data: FriendRequest[] }>('/api/friends/sent'),
+      this.request<{ friends: Friend[]; incoming: FriendRequest[]; outgoing: FriendRequest[]; blocked: FriendRequest[] }>('/api/friends').then(r => ({ data: r.outgoing })),
 
     sendRequest: (email: string) =>
-      this.request('/api/friends/request', {
+      this.request('/api/friends', {
         method: 'POST',
         body: { email },
       }),
 
     acceptRequest: (id: number) =>
-      this.request('/api/friends/requests/' + id + '/accept', { method: 'POST' }),
+      this.request('/api/friends/' + id, { method: 'PATCH' }),
 
     rejectRequest: (id: number) =>
-      this.request('/api/friends/requests/' + id + '/reject', { method: 'POST' }),
+      this.request('/api/friends/' + id, { method: 'DELETE' }),
 
     cancelRequest: (id: number) =>
-      this.request('/api/friends/requests/' + id, { method: 'DELETE' }),
+      this.request('/api/friends/' + id, { method: 'DELETE' }),
 
     remove: (id: number) =>
       this.request('/api/friends/' + id, { method: 'DELETE' }),
 
     block: (id: number) =>
       this.request('/api/friends/' + id + '/block', { method: 'POST' }),
+
+    unblock: (id: number) =>
+      this.request('/api/friends/' + id + '/unblock', { method: 'POST' }),
   };
 
   // Shares
   shares = {
     sharedByMe: () =>
-      this.request<{ data: Share[] }>('/api/shares/by-me'),
+      this.request<{ data: Share[] }>('/api/shares/sent'),
 
     sharedWithMe: () =>
-      this.request<{ data: Share[] }>('/api/shares/with-me'),
+      this.request<{ data: Share[] }>('/api/shares/received'),
+
+    get: (shareId: number) =>
+      this.request<{ data: Share }>(`/api/shares/${shareId}`),
 
     shareWithFriends: (data: { friend_ids: number[]; photo_ids?: number[]; album_id?: number; message?: string }) =>
       this.request('/api/shares', {
@@ -279,7 +395,7 @@ class ApiClient {
       this.request<{ data: ShareLink[] }>('/api/share-links'),
 
     create: (data: { type: 'photo' | 'album'; id: number; expires_in_days?: number }) =>
-      this.request<{ data: ShareLink }>('/api/share-links', {
+      this.request<{ url: string; token: string; expires_at?: string | null }>('/api/share-links', {
         method: 'POST',
         body: data,
       }),
@@ -288,7 +404,7 @@ class ApiClient {
       this.request('/api/share-links/' + id, { method: 'DELETE' }),
 
     getByToken: (token: string) =>
-      this.request<{ data: ShareLink }>('/api/share/' + token),
+      this.request<{ type: 'photo' | 'album'; data: Photo | Album }>('/api/share/' + token),
   };
 
   // Notifications
@@ -306,32 +422,6 @@ class ApiClient {
       this.request('/api/notifications/read-all', { method: 'POST' }),
   };
 
-  // Profile
-  profile = {
-    update: (data: { name?: string; email?: string }) =>
-      this.request<{ data: User }>('/api/profile', {
-        method: 'PUT',
-        body: data,
-      }),
-
-    updatePassword: (data: { current_password: string; password: string; password_confirmation: string }) =>
-      this.request('/api/profile/password', {
-        method: 'PUT',
-        body: data,
-      }),
-
-    updateAvatar: (file: File) => {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      return this.request<{ data: User }>('/api/profile/avatar', {
-        method: 'POST',
-        body: formData,
-      });
-    },
-
-    storage: () =>
-      this.request<{ data: { used: number; quota: number; percentage: number } }>('/api/profile/storage'),
-  };
 }
 
 export const api = new ApiClient();

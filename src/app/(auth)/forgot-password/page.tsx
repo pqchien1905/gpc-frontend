@@ -21,9 +21,9 @@ export default function ForgotPasswordPage() {
     try {
       await api.auth.forgotPassword(email);
       setIsSent(true);
-      toast.success('Da gui email khoi phuc mat khau!');
+      toast.success('Đã gửi email khôi phục mật khẩu!');
     } catch (error) {
-      toast.error('Khong the gui email. Vui long kiem tra lai dia chi email.');
+      toast.error('Không thể gửi email. Vui lòng kiểm tra lại địa chỉ email.');
     } finally {
       setIsLoading(false);
     }
@@ -39,14 +39,14 @@ export default function ForgotPasswordPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <CardTitle>Kiem tra email cua ban</CardTitle>
+            <CardTitle>Kiểm tra email của bạn</CardTitle>
             <CardDescription>
-              Chung toi da gui huong dan khoi phuc mat khau den {email}
+              Chúng tôi đã gửi khôi phục mật khẩu đến {email}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <Link href="/login">
-              <Button className="w-full">Quay lai dang nhap</Button>
+              <Button className="w-full">Quay lại đăng nhập</Button>
             </Link>
           </CardContent>
         </Card>
@@ -58,9 +58,9 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle>Quen mat khau?</CardTitle>
+          <CardTitle>Quên mật khẩu?</CardTitle>
           <CardDescription>
-            Nhap email cua ban de nhan huong dan khoi phuc mat khau
+            Nhập email của bạn để hướng dẫn khôi phục mật khẩu
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -78,12 +78,12 @@ export default function ForgotPasswordPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Dang gui...' : 'Gui email khoi phuc'}
+              {isLoading ? 'Đang gửi...' : 'Gửi email khôi phục'}
             </Button>
 
             <div className="text-center text-sm">
               <Link href="/login" className="text-blue-600 hover:underline">
-                Quay lai dang nhap
+                Quay lại đăng nhập
               </Link>
             </div>
           </form>

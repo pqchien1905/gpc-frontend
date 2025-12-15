@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { Photo } from '@/types';
 
-const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8000/storage';
+import { getStorageUrl } from '@/lib/utils/api-url';
 
 interface PhotoCardProps {
   photo: Photo;
@@ -13,6 +13,7 @@ interface PhotoCardProps {
   onSelect?: (id: number) => void;
   onFavorite?: (id: number) => void;
   onDelete?: (id: number) => void;
+  onClick?: (photo: Photo) => void;
 }
 
 export default function PhotoCard({
@@ -22,14 +23,52 @@ export default function PhotoCard({
   onSelect,
   onFavorite,
   onDelete,
+  onClick,
 }: PhotoCardProps) {
   const [showActions, setShowActions] = useState(false);
-  const isVideo = photo.mime_type?.startsWith('video/');
+  const [imageError, setImageError] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [retryingThumbnail, setRetryingThumbnail] = useState(false);
+  const isVideo = (photo.mime || photo.mime_type || '').startsWith('video/');
+  const STORAGE_URL = getStorageUrl();
 
   const handleClick = () => {
     if (selectionMode && onSelect) {
       onSelect(photo.id);
+    } else if (!selectionMode && onClick) {
+      onClick(photo);
     }
+  };
+
+  // Use thumbnail if available and no error, otherwise fallback to original
+  const getImageUrl = () => {
+    const thumb = photo.thumb_path || photo.thumbnail_path;
+    // For videos, only use thumbnail if available
+    if (isVideo) {
+      if (thumb && !imageError) {
+        return `${STORAGE_URL}/${thumb}`;
+      }
+      return null;
+    }
+    
+    // For images, use thumbnail or fallback to original
+    if (imageError || !thumb) {
+      const originalPath = photo.path || photo.file_path;
+      return originalPath ? `${STORAGE_URL}/${originalPath}` : null;
+    }
+    return `${STORAGE_URL}/${thumb}`;
+  };
+  
+  const handleImageError = () => {
+    setImageError(true);
+  };
+  
+  const imageUrl = getImageUrl();
+  const hasThumb = (photo.thumb_path || photo.thumbnail_path) && !imageError;
+  const shouldShowPlaceholder = (isVideo && !hasThumb) || (!isVideo && imageError && !hasThumb);
+
+  const handleImageLoad = () => {
+    setImageLoaded(true);
   };
 
   return (
@@ -41,14 +80,49 @@ export default function PhotoCard({
       onMouseLeave={() => setShowActions(false)}
       onClick={handleClick}
     >
-      {/* Thumbnail */}
-      <Image
-        src={`${STORAGE_URL}/${photo.thumbnail_path || photo.file_path}`}
-        alt={photo.original_filename}
-        fill
-        className="object-cover group-hover:scale-105 transition-transform"
-        sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
-      />
+      {/* Thumbnail or Placeholder */}
+      {shouldShowPlaceholder ? (
+        <div className="absolute inset-0 bg-linear-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+          {isVideo ? (
+            <div className="text-center">
+              <svg className="w-16 h-16 text-gray-500 dark:text-gray-400 mx-auto mb-2" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Video</p>
+            </div>
+          ) : (
+            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          )}
+        </div>
+      ) : imageUrl ? (
+        <>
+          {!imageLoaded && !imageError && (
+            <div className="absolute inset-0 bg-gray-200 animate-pulse flex items-center justify-center">
+              {isVideo ? (
+                <svg className="w-12 h-12 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              ) : (
+                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              )}
+            </div>
+          )}
+          <Image
+            src={imageUrl}
+            alt={photo.original_filename || 'Photo'}
+            fill
+            className={`object-cover group-hover:scale-105 transition-transform ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
+            sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 20vw"
+            onError={handleImageError}
+            onLoad={handleImageLoad}
+            unoptimized={true}
+          />
+        </>
+      ) : null}
 
       {/* Video indicator */}
       {isVideo && (

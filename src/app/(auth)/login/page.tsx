@@ -21,14 +21,26 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Client-side validation
+    if (!formData.email || !formData.password) {
+      toast.error('Vui lòng nhập email và mật khẩu');
+      return;
+    }
+
+    if (!formData.email.includes('@')) {
+      toast.error('Email không hợp lệ');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await login({ email: formData.email, password: formData.password });
-      toast.success('Dang nhap thanh cong!');
+      await login({ email: formData.email.trim(), password: formData.password });
+      toast.success('Đăng nhập thành công!');
       router.push('/photos');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Dang nhap that bai';
+      const message = error instanceof Error ? error.message : 'Đăng nhập thất bại';
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -39,13 +51,13 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-linear-to-br from-blue-500 to-green-500 rounded-full flex items-center justify-center">
             <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
               <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z" />
             </svg>
           </div>
-          <CardTitle className="text-2xl">Dang nhap</CardTitle>
-          <CardDescription>Dang nhap vao tai khoan cua ban</CardDescription>
+          <CardTitle className="text-2xl">Đăng nhập</CardTitle>
+          <CardDescription>Đăng nhập vào tài khoản của bạn</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -61,29 +73,29 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Mat khau</Label>
+              <Label htmlFor="password">Mật khẩu</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Nhap mat khau"
+                placeholder="Nhập mật khẩu"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 required
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Dang xu ly...' : 'Dang nhap'}
+              {isLoading ? 'Đang xử lý...' : 'Đăng nhập'}
             </Button>
           </form>
           <div className="mt-6 text-center text-sm">
             <Link href="/forgot-password" className="text-blue-600 hover:underline">
-              Quen mat khau?
+              Quên mật khẩu?
             </Link>
           </div>
           <div className="mt-4 text-center text-sm text-gray-600">
-            Chua co tai khoan?{' '}
+            Chưa có tài khoản?{' '}
             <Link href="/register" className="text-blue-600 hover:underline font-medium">
-              Dang ky
+              Đăng ký
             </Link>
           </div>
         </CardContent>

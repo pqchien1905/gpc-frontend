@@ -5,7 +5,9 @@ import Image from 'next/image';
 import { Photo } from '@/types';
 import { Button } from '@/components/ui/button';
 
-const STORAGE_URL = process.env.NEXT_PUBLIC_STORAGE_URL || 'http://localhost:8000/storage';
+import { getStorageUrl } from '@/lib/utils/api-url';
+
+const STORAGE_URL = getStorageUrl();
 
 interface PhotoViewerModalProps {
   photo: Photo | null;
@@ -69,8 +71,9 @@ export default function PhotoViewerModal({
 
   if (!isOpen || !photo) return null;
 
-  const isVideo = photo.mime_type?.startsWith('video/');
-  const takenAt = photo.taken_at ? new Date(photo.taken_at).toLocaleDateString('vi-VN', {
+  const isVideo = (photo.mime || photo.mime_type || '').startsWith('video/');
+  const filePath = photo.path || photo.file_path || '';
+  const takenAt = (photo.captured_at || photo.taken_at) ? new Date(photo.captured_at || photo.taken_at || '').toLocaleDateString('vi-VN', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -82,7 +85,7 @@ export default function PhotoViewerModal({
   return (
     <div className="fixed inset-0 z-50 bg-black">
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-black/50 to-transparent flex items-center justify-between px-4 z-10">
+      <div className="absolute top-0 left-0 right-0 h-16 bg-linear-to-b from-black/50 to-transparent flex items-center justify-between px-4 z-10">
         <Button
           variant="ghost"
           size="icon"
@@ -142,7 +145,7 @@ export default function PhotoViewerModal({
       <div className="absolute inset-0 flex items-center justify-center p-16">
         {isVideo ? (
           <video
-            src={`${STORAGE_URL}/${photo.file_path}`}
+            src={`${STORAGE_URL}/${filePath}`}
             controls
             autoPlay
             className="max-w-full max-h-full object-contain"
@@ -150,8 +153,8 @@ export default function PhotoViewerModal({
         ) : (
           <div className="relative w-full h-full">
             <Image
-              src={`${STORAGE_URL}/${photo.file_path}`}
-              alt={photo.original_filename}
+              src={`${STORAGE_URL}/${filePath}`}
+              alt={photo.original_filename || 'Photo'}
               fill
               className="object-contain"
               priority
@@ -184,10 +187,12 @@ export default function PhotoViewerModal({
       )}
 
       {/* Photo info */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/50 to-transparent">
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-linear-to-t from-black/50 to-transparent">
         <p className="text-white font-medium">{photo.original_filename}</p>
         {takenAt && <p className="text-white/70 text-sm">{takenAt}</p>}
-        {photo.location && <p className="text-white/70 text-sm">{photo.location}</p>}
+        {(photo.location_text || photo.location) && (
+          <p className="text-white/70 text-sm">{photo.location_text || photo.location}</p>
+        )}
       </div>
     </div>
   );

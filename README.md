@@ -21,17 +21,19 @@ Next.js 16 frontend for Google Photos Clone application.
 
 ### Installation
 
-\\\ash
+```bash
 # Install dependencies
 npm install
 
-# Copy environment file
-cp .env.example .env.local
-
-# Update API URL in .env.local if needed
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_STORAGE_URL=http://localhost:8000/storage
-\\\
+# Create environment file
+# Create .env.local file with the following content:
+# NEXT_PUBLIC_API_URL=http://localhost:8000
+# NEXT_PUBLIC_STORAGE_URL=http://localhost:8000/storage
+#
+# Or use this command:
+echo NEXT_PUBLIC_API_URL=http://localhost:8000 > .env.local
+echo NEXT_PUBLIC_STORAGE_URL=http://localhost:8000/storage >> .env.local
+```
 
 ### Development
 
